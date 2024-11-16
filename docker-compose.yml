@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  tg-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg-bot-go
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Shanghai
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - tg-bot-network
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: tg-bot-postgres
+    restart: always
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tg-bot-network
+
+  redis:
+    image: redis:alpine
+    container_name: tg-bot-redis
+    restart: always
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - tg-bot-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  tg-bot-network:
+    driver: bridge 
