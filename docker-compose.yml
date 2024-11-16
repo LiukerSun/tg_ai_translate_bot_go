@@ -8,9 +8,9 @@ services:
     container_name: tg-bot-go
     restart: always
     depends_on:
-      postgres:
+      tg_go_postgres:
         condition: service_healthy
-      redis:
+      tg_go_redis:
         condition: service_healthy
     environment:
       - TZ=Asia/Shanghai
@@ -21,9 +21,9 @@ services:
     networks:
       - tg-bot-network
 
-  postgres:
+  tg_go_postgres:
     image: postgres:14-alpine
-    container_name: tg-bot-postgres
+    container_name: tg_go_postgres
     restart: always
     env_file:
       - .env
@@ -37,13 +37,15 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - tg_go_postgres_data:/var/lib/postgresql/data
     networks:
-      - tg-bot-network
+      tg-bot-network:
+        aliases:
+          - postgres  # Ensure this line is present and correctly indented
 
-  redis:
+  tg_go_redis:
     image: redis:alpine
-    container_name: tg-bot-redis
+    container_name: tg_go_redis
     restart: always
     command: redis-server --appendonly yes
     healthcheck:
@@ -52,14 +54,14 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - redis_data:/data
+      - tg_go_redis_data:/data
     networks:
       - tg-bot-network
 
 volumes:
-  postgres_data:
-  redis_data:
+  tg_go_postgres_data:
+  tg_go_redis_data:
 
 networks:
   tg-bot-network:
-    driver: bridge 
+    driver: bridge
