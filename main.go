@@ -15,7 +15,6 @@ import (
 	"tg-bot-go/logger"
 	"tg-bot-go/models"
 
-	"github.com/go-redis/redis/v8"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
@@ -46,18 +45,10 @@ func main() {
 	config.InitAdminUser()
 
 	// 初始化 Redis 客户端
-	rdb := redis.NewClient(&redis.Options{
-		Addr: config.Config.Redis.Addr,
-	})
-
-	// 测试 Redis 连接
-	_, err := rdb.Ping(ctx).Result()
-	if err != nil {
-		log.Printf("Warning: Redis connection failed: %v", err)
-	}
+	handlers.InitRedis(config.Config.Redis.Addr)
 
 	// 清理 Redis 缓存
-	err = rdb.FlushDB(ctx).Err()
+	err := handlers.Rdb.FlushDB(ctx).Err()
 	if err != nil {
 		log.Fatalf("无法清理 Redis 缓存：%v", err)
 	}

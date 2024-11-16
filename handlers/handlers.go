@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"tg-bot-go/config"
@@ -15,10 +16,22 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-var ctx = context.Background()
-var rdb = redis.NewClient(&redis.Options{
-	Addr: config.Config.Redis.Addr, // 使用配置文件中的 Redis 地址
-})
+var (
+	ctx = context.Background()
+	Rdb *redis.Client
+)
+
+// 添加 Redis 初始化函数
+func InitRedis(redisAddr string) {
+	Rdb = redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+
+	// 测试连接
+	if _, err := Rdb.Ping(ctx).Result(); err != nil {
+		log.Printf("Warning: Redis connection failed: %v", err)
+	}
+}
 
 // 添加常量定义
 const (
@@ -56,7 +69,7 @@ func HandleMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	presetKey := fmt.Sprintf("user:%d:preset", chatID)
 
 	// 获取用户预设（作为 system prompt）
-	userPreset, _ := rdb.Get(ctx, presetKey).Result()
+	userPreset, _ := Rdb.Get(ctx, presetKey).Result()
 
 	var response string
 	var err error
@@ -84,7 +97,7 @@ func HandleMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	// 更新对话上下文
 	var newContext string
-	userContext, _ := rdb.Get(ctx, contextKey).Result()
+	userContext, _ := Rdb.Get(ctx, contextKey).Result()
 	if userContext == "" {
 		newContext = text + "\n" + response
 	} else {
@@ -94,7 +107,7 @@ func HandleMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	// 检查上下文长度
 	if len(newContext) > MAX_CONTEXT_LENGTH {
 		// 清空对话上下文，但保留预设
-		if err := rdb.Del(ctx, contextKey).Err(); err != nil {
+		if err := Rdb.Del(ctx, contextKey).Err(); err != nil {
 			logger.LogRuntime(fmt.Sprintf("Failed to delete context: %v", err))
 		}
 		// 通知用户
@@ -105,7 +118,7 @@ func HandleMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 
 	// 保存新的上下文
-	if err := rdb.Set(ctx, contextKey, newContext, 15*time.Minute).Err(); err != nil {
+	if err := Rdb.Set(ctx, contextKey, newContext, 15*time.Minute).Err(); err != nil {
 		logger.LogRuntime(fmt.Sprintf("Failed to update context: %v", err))
 	}
 }
@@ -168,7 +181,7 @@ func handleCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		contextKey := fmt.Sprintf("user:%d:context", chatID)
 		presetKey := fmt.Sprintf("user:%d:preset", chatID)
 
-		if err := rdb.Del(ctx, contextKey, presetKey).Err(); err != nil {
+		if err := Rdb.Del(ctx, contextKey, presetKey).Err(); err != nil {
 			logger.LogRuntime(fmt.Sprintf("Failed to delete Redis context and preset: %v", err))
 			msg := tgbotapi.NewMessage(chatID, "清空上下文失败，请稍后再试。")
 			bot.Send(msg)
@@ -217,10 +230,18 @@ func handleCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 func handlePresetCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update, preset config.PresetItem) {
 	chatID := update.Message.Chat.ID
 
+	// 检查 Redis 连接
+	if Rdb == nil {
+		logger.LogRuntime("Redis client is not initialized")
+		msg := tgbotapi.NewMessage(chatID, "系统错误，请联系管理员。")
+		bot.Send(msg)
+		return
+	}
+
 	// 保存用户选择的预设
 	presetKey := fmt.Sprintf("user:%d:preset", chatID)
-	if err := rdb.Set(ctx, presetKey, preset.Content, 24*time.Hour).Err(); err != nil {
-		logger.LogRuntime(fmt.Sprintf("Failed to save preset: %v", err))
+	if err := Rdb.Set(ctx, presetKey, preset.Content, 24*time.Hour).Err(); err != nil {
+		logger.LogRuntime(fmt.Sprintf("Failed to save preset: %v, Redis addr: %s", err, config.Config.Redis.Addr))
 		msg := tgbotapi.NewMessage(chatID, "设置预设失败，请稍后再试。")
 		bot.Send(msg)
 		return
@@ -228,7 +249,7 @@ func handlePresetCommand(bot *tgbotapi.BotAPI, update tgbotapi.Update, preset co
 
 	// 清空对话上下文
 	contextKey := fmt.Sprintf("user:%d:context", chatID)
-	if err := rdb.Del(ctx, contextKey).Err(); err != nil {
+	if err := Rdb.Del(ctx, contextKey).Err(); err != nil {
 		logger.LogRuntime(fmt.Sprintf("Failed to delete context: %v", err))
 	}
 
@@ -412,7 +433,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			if data == item.Command {
 				// 保存用户选择的预设
 				presetKey := fmt.Sprintf("user:%d:preset", chatID)
-				if err := rdb.Set(ctx, presetKey, item.Content, 24*time.Hour).Err(); err != nil {
+				if err := Rdb.Set(ctx, presetKey, item.Content, 24*time.Hour).Err(); err != nil {
 					logger.LogRuntime(fmt.Sprintf("Failed to save preset: %v", err))
 					msg := tgbotapi.NewMessage(chatID, "设置预设失败，请稍后再试。")
 					bot.Send(msg)
@@ -421,7 +442,7 @@ func HandleCallback(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 				// 清空对话上下文
 				contextKey := fmt.Sprintf("user:%d:context", chatID)
-				if err := rdb.Del(ctx, contextKey).Err(); err != nil {
+				if err := Rdb.Del(ctx, contextKey).Err(); err != nil {
 					logger.LogRuntime(fmt.Sprintf("Failed to delete context: %v", err))
 				}
 
