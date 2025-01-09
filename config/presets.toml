@@ -1,4 +1,9 @@
 [[items]]
+button = "基础模式"
+command = "/basic_mode"
+content = ""
+
+[[items]]
 button = "中译日"
 command = "/chinese_to_japanese"
 content = """
