@@ -57,6 +57,12 @@ func GetOpenAIResponse(systemPrompt, userPrompt string) (string, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+	if ref := config.Config.OpenAI.HTTPReferer; ref != "" {
+		req.Header.Set("HTTP-Referer", ref)
+	}
+	if title := config.Config.OpenAI.XTitle; title != "" {
+		req.Header.Set("X-Title", title)
+	}
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

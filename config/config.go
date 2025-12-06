@@ -42,9 +42,11 @@ type TelegramConfig struct {
 }
 
 type OpenAIConfig struct {
-	APIURL string
-	APIKey string
-	Model  string
+    APIURL string
+    APIKey string
+    Model  string
+    HTTPReferer string
+    XTitle      string
 }
 
 type RedisConfig struct {
@@ -87,7 +89,7 @@ func InitConfig() {
 		}
 	}
 
-	Config = Configuration{
+    Config = Configuration{
 		Database: DatabaseConfig{
 			Host:     getEnvOrDefault("DB_HOST", "localhost"),
 			User:     getEnvOrDefault("DB_USER", "root"),
@@ -99,11 +101,13 @@ func InitConfig() {
 		Telegram: TelegramConfig{
 			BotToken: os.Getenv("TELEGRAM_BOT_TOKEN"),
 		},
-		OpenAI: OpenAIConfig{
-			APIURL: os.Getenv("OPENAI_API_URL"),
-			APIKey: os.Getenv("OPENAI_API_KEY"),
-			Model:  getEnvOrDefault("OPENAI_MODEL", "gpt-4o"),
-		},
+        OpenAI: OpenAIConfig{
+            APIURL: getEnvOrDefault("OPENROUTER_API_URL", getEnvOrDefault("OPENAI_API_URL", "https://openrouter.ai/api")),
+            APIKey: getEnvOrDefault("OPENROUTER_API_KEY", os.Getenv("OPENAI_API_KEY")),
+            Model:  getEnvOrDefault("OPENROUTER_MODEL", getEnvOrDefault("OPENAI_MODEL", "openai/gpt-4o")),
+            HTTPReferer: os.Getenv("OPENROUTER_HTTP_REFERER"),
+            XTitle:      os.Getenv("OPENROUTER_X_TITLE"),
+        },
 		Redis: RedisConfig{
 			Addr: fmt.Sprintf("%s:%s",
 				getEnvOrDefault("REDIS_HOST", "localhost"),
