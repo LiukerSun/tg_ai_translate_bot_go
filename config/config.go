@@ -163,9 +163,21 @@ func InitDB() {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		dbConfig.Host, dbConfig.User, dbConfig.Password, dbConfig.DBName, dbConfig.Port, dbConfig.SSLMode)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	var db *gorm.DB
+	var err error
+	
+	// 增加重试机制 (最多重试 5 次，每次间隔 5 秒)
+	for i := 0; i < 5; i++ {
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			break
+		}
+		log.Printf("连接数据库失败，5秒后重试 (%d/5): %v", i+1, err)
+		time.Sleep(5 * time.Second)
+	}
+
 	if err != nil {
-		log.Fatal("无法连接到数据库：", err)
+		log.Fatal("无法连接到数据库，请检查配置：", err)
 	}
 	DB = db
 }

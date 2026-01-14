@@ -45,11 +45,10 @@ func main() {
 	config.InitAdminUser()
 
 	// 初始化 Redis 客户端
-	handlers.InitRedis(config.Config.Redis.Addr)
+	rdb := handlers.InitRedis(config.Config.Redis.Addr)
 
 	// 清理 Redis 缓存
-	err := handlers.Rdb.FlushDB(ctx).Err()
-	if err != nil {
+	if err := rdb.FlushDB(ctx).Err(); err != nil {
 		log.Fatalf("无法清理 Redis 缓存：%v", err)
 	}
 
@@ -66,6 +65,9 @@ func main() {
 	}
 
 	bot.Debug = true
+
+	// 初始化 Handler (依赖注入)
+	h := handlers.NewHandler(bot, config.DB, rdb)
 
 	// 删除 Webhook
 	_, err = bot.Request(tgbotapi.DeleteWebhookConfig{})
@@ -105,9 +107,9 @@ func main() {
 			}()
 
 			if update.Message != nil {
-				handlers.HandleMessage(bot, update)
+				h.HandleMessage(update)
 			} else if update.CallbackQuery != nil {
-				handlers.HandleCallback(bot, update)
+				h.HandleCallback(update)
 			}
 		}(update)
 	}

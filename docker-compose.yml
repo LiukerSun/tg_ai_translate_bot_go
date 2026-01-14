@@ -7,13 +7,10 @@ services:
       dockerfile: Dockerfile
     container_name: tg-bot-go
     restart: always
+    # 移除强制依赖，允许用户指向外部数据库
+    # 如果使用本地定义的数据库，建议保留以确保启动顺序，但不再锁定状态
     depends_on:
-      tg_go_postgres:
-        condition: service_healthy
-      tg_go_redis:
-        condition: service_healthy
-    environment:
-      - TZ=Asia/Shanghai
+      - tg_go_redis
     env_file:
       - .env
     volumes:
@@ -21,6 +18,7 @@ services:
     networks:
       - tg-bot-network
 
+  # 本地数据库，如果不需要可以运行时指定不启动：docker-compose up tg-bot tg_go_redis
   tg_go_postgres:
     image: postgres:14-alpine
     container_name: tg_go_postgres
@@ -32,7 +30,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U $$DB_USER -d $$DB_NAME"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,7 +39,7 @@ services:
     networks:
       tg-bot-network:
         aliases:
-          - postgres  # Ensure this line is present and correctly indented
+          - postgres
 
   tg_go_redis:
     image: redis:alpine
@@ -56,7 +54,9 @@ services:
     volumes:
       - tg_go_redis_data:/data
     networks:
-      - tg-bot-network
+      tg-bot-network:
+        aliases:
+          - redis
 
 volumes:
   tg_go_postgres_data:

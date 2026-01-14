@@ -1,16 +1,21 @@
 # Telegram Translation Bot
 
-一个集成 OpenAI 的 Telegram 机器人，支持自定义预设。
+一个集成 OpenAI 的 Telegram 机器人，支持自定义预设、多轮对话上下文管理和完善的用户权限系统。
 
 ## 功能特点
 
-- 支持自定义预设提示词
-- 预设模式切换
-- 用户白名单管理系统
-- 用户有效期管理
-- 多管理员支持
-- 对话上下文管理
-- Docker 部署支持
+- **架构优化**：采用依赖注入（Dependency Injection）设计，代码结构清晰，易于扩展和维护。
+- **高性能 OpenAI 集成**：
+  - 复用 HTTP 客户端连接（Keep-Alive），提升响应速度。
+  - 支持完整的对话上下文（Context）传递，实现丝滑的多轮对话。
+- **智能上下文管理**：
+  - 使用 Redis List 存储对话历史，规避并发写入冲突。
+  - 自动长度控制：基于字符数（Rune Count）智能裁剪过长历史，确保不触发 API 限制。
+- **安全与限流**：
+  - **频率限制**：内置每分钟消息限流机制，保护 API 额度不被滥用。
+  - **白名单系统**：完善的用户授权与有效期管理，支持多管理员。
+- **自定义预设**：支持通过配置文件自定义 System Prompt 和快捷按钮。
+- **Docker 部署**：一键式环境搭建，支持热加载开发模式。
 
 ## 命令列表
 
@@ -21,29 +26,32 @@
 - `/clear` - 清空当前对话历史和预设
 - `/expiry` - 查看您的使用权限有效期
 - `/id` - 获取您的用户ID
+- `/chinese_to_japanese` 等 - 预设翻译模式切换（支持自定义）
 
 ### 管理员命令
 - `/adduser <用户ID> [天数]` - 添加用户到白名单
 - `/deleteuser <用户ID>` - 从白名单删除用户
-- `/extend <用户ID> <天数>` - 延长用户使用期限
+- `/extend <用户ID> <天数]` - 延长用户使用期限
 - `/checkuser [用户ID]` - 查看用户列表或指定用户状态
 
-### 预设模式
-- `/chinese_to_japanese` - 切换到中译日模式
-- `/japanese_to_chinese` - 切换到日译中模式
-- `/russian_mode` - 切换到俄语翻译模式
+## 技术栈
+
+- **语言**: Go 1.22+
+- **数据库**: PostgreSQL 14+ (用户权限)
+- **缓存**: Redis (对话上下文、频率限制)
+- **框架**: `telegram-bot-api/v5`, `gorm`, `go-redis/v8`
 
 ## 环境要求
 
 - Go 1.22+
-- PostgreSQL 14+
+- PostgreSQL
 - Redis
-- Docker & Docker Compose (可选)
+- Docker & Docker Compose (推荐)
 
 ## 配置说明
 
 ### 环境变量
-创建 `.env` 文件，包含以下配置：
+创建 `.env` 文件，参考 `.env.example`：
 ```env
 # Database
 DB_HOST=postgres
@@ -63,114 +71,58 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 # OpenAI
 OPENAI_API_URL=your_api_url
 OPENAI_API_KEY=your_api_key
-OPENAI_MODEL=gpt-3.5-turbo
+OPENAI_MODEL=gpt-4o  # 推荐使用
 
 # Admin
-ADMIN_USER_IDS=admin_id1,admin_id2
+ADMIN_USER_IDS=12345678,98765432
 ```
-
 
 ## 部署说明
 
-### Docker 部署
-1. 克隆仓库
-```bash
-git clone https://github.com/yourusername/tg-bot-go.git
-cd tg-bot-go
-```
-2. 配置环境变量
-```bash
-cp .env.example .env
-#编辑 .env 文件，填入必要的配置信息
-```
-3. 启动服务
-```bash
-docker-compose up -d
-```
+### Docker 部署 (推荐)
+1. 克隆仓库并进入目录
+2. 配置 `.env` 文件
+3. 启动服务：
+   ```bash
+   docker-compose up -d
+   ```
+
 ### 手动部署
-1. 安装依赖
-bash
-go mod download
-
-2. 编译
-```bash
-go build -o tg-bot-go main.go
+...
 ```
 
-3. 运行
-```bash
-./tg-bot-go
-```
+## 进阶功能：使用外部数据库
 
-## 开发模式
+如果你已经有现成的 PostgreSQL 数据库，不想在 Docker 中启动新的：
 
-使用 `-dev` 标志启动开发模式：
-```bash
-go run main.go -dev
-```
+1. **修改 `.env`**：将 `DB_HOST` 指向你的外部数据库地址，并填写正确的端口、用户名和密码。
+2. **选择性启动**：只启动机器人服务和 Redis：
+   ```bash
+   docker-compose up -d tg-bot tg_go_redis
+   ```
+   或者直接注释掉 `docker-compose.yml` 中的 `tg_go_postgres` 部分。
 
+## 项目结构
+...
 
-开发模式会加载 `.env.dev` 文件中的配置。
+## 项目结构
 
-## 预设模式
-
-机器人支持两种类型的按钮：
-
-### Inline Keyboard 按钮
-- 显示在消息中的按钮
-- 用于选择预设模式
-- 在 `/start` 和 `/clear` 命令后显示
-
-### Reply Keyboard 按钮
-- 显示在输入框上方的持久按钮
-- 包含常用命令如 `/clear`
-- 方便用户快速访问常用功能
-
-### 自定义按钮和预设
-
-可以通过修改 `config/presets.toml` 文件来自定义预设按钮：
-
-```toml
-[[items]]
-button = "中译日"    # 按钮显示文本
-command = "/chinese_to_japanese"    # 按钮命令
-content = """
-你是一个翻译引擎，负责将输入的中文文本翻译成日语。要求如下：
-1. 忠实于原文意思，逐字逐句翻译，不添加、不删减或改写内容。
-2. 翻译结果必须符合日语的自然表达方式，贴近日常对话。
-3. 确保语法正确，并传递原文的语气和情感。
-
-示例：
-- 输入："你好" -> 输出："こんにちは"
-- 输入："你是谁？" -> 输出："あなたは誰ですか？"
-"""
-```
-
-添加新的预设：
-1. 在 `presets.toml` 中添加新的 `[[items]]` 配置
-2. 设置按钮显示文本 (`button`)
-3. 设置命令名称 (`command`)
-4. 编写预设提示词 (`content`)
-5. 重启机器人使配置生效
-
-注意事项：
-- 命令名称必须以 `/` 开头
-
-
-
-## 数据持久化
-
-- PostgreSQL 数据存储在 `tg_go_postgres_data` 卷中
-- Redis 数据存储在 `tg_go_redis_data` 卷中
-- 日志文件存储在 `./logs` 目录
+- `main.go`: 程序入口，负责依赖注入与生命周期管理。
+- `handlers/`:
+  - `init.go`: 核心 `Handler` 结构定义。
+  - `message.go`: 文本消息处理、限流与上下文逻辑。
+  - `command.go`: 通用与预设命令逻辑。
+  - `admin.go`: 管理员特权指令。
+  - `callback.go`: 按钮回调处理。
+- `openai/`: 封装 OpenAI API 调用与连接池。
+- `models/`: GORM 数据库模型与权限逻辑。
+- `config/`: 配置文件与环境变量加载。
 
 ## 注意事项
 
-1. 首次运行时会自动创建数据库表结构
-2. 确保在启动前已正确配置管理员ID
-3. Redis 用于存储对话上下文，重启后会清空
-4. 用户有效期到期后需要管理员手动延期
-5. 建议定期备份数据库
+1. **频率限制**：默认限制为每位用户 10 条消息/分钟，可在 `handlers/message.go` 中修改。
+2. **上下文过期**：对话历史在 Redis 中默认保留 30 分钟。
+3. **数据迁移**：启动时会自动执行 GORM AutoMigrate。
 
 ## 许可证
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"tg-bot-go/config"
+	"time"
 )
 
 type ChatMessage struct {
@@ -24,22 +25,15 @@ type OpenAIChatResponse struct {
 	} `json:"choices"`
 }
 
-func GetOpenAIResponse(systemPrompt, userPrompt string) (string, error) {
+var httpClient = &http.Client{
+	Timeout: 60 * time.Second,
+}
+
+// GetOpenAIResponse gets a response from OpenAI based on the provided messages history
+func GetOpenAIResponse(messages []ChatMessage) (string, error) {
 	apiURL := fmt.Sprintf("%s/v1/chat/completions", config.Config.OpenAI.APIURL)
 	apiKey := config.Config.OpenAI.APIKey
 	model := config.Config.OpenAI.Model
-
-	// 构建消息数组
-	messages := []ChatMessage{
-		{
-			Role:    "system",
-			Content: systemPrompt,
-		},
-		{
-			Role:    "user",
-			Content: userPrompt,
-		},
-	}
 
 	// 构建请求体
 	requestBody, err := json.Marshal(OpenAIChatRequest{
@@ -64,8 +58,7 @@ func GetOpenAIResponse(systemPrompt, userPrompt string) (string, error) {
 		req.Header.Set("X-Title", title)
 	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}

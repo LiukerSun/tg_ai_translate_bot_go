@@ -1,41 +1,42 @@
-# 构建阶段
-FROM golang:1.22-bullseye AS builder
+# Build stage
+FROM golang:1.22-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git gcc musl-dev
 
 WORKDIR /app
 
-# 复制依赖文件
+# Cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# 复制源代码
+# Copy source code
 COPY . .
 
-# 构建可执行文件
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tg-bot-go main.go
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o tg-bot-go main.go
 
-# 运行阶段
+# Run stage
 FROM alpine:latest
 
-# 设置时区
+# Set timezone
 ENV TZ=Asia/Shanghai
 
-# 安装必要的包
-RUN apk update && \
-    apk add --no-cache ca-certificates tzdata && \
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata && \
     update-ca-certificates
-
-# 创建必要的目录
-RUN mkdir -p /app/logs
 
 WORKDIR /app
 
-# 从构建阶段复制文件
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Copy binary and config from builder
 COPY --from=builder /app/tg-bot-go .
 COPY --from=builder /app/config ./config
 
-# 设置权限
+# Ensure binary is executable
 RUN chmod +x /app/tg-bot-go
 
-
-# 运行程序
-CMD ["./tg-bot-go"]
+# Run the application
+ENTRYPOINT ["./tg-bot-go"]
