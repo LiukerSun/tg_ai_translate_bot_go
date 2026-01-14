@@ -122,6 +122,3 @@ ADMIN_USER_IDS=12345678,98765432
 2. **上下文过期**：对话历史在 Redis 中默认保留 30 分钟。
 3. **数据迁移**：启动时会自动执行 GORM AutoMigrate。
 
-## 许可证
-
-[MIT License](LICENSE)
