@@ -102,8 +102,6 @@ ADMIN_USER_IDS=12345678,98765432
    ```
    或者直接注释掉 `docker-compose.yml` 中的 `tg_go_postgres` 部分。
 
-## 项目结构
-...
 
 ## 项目结构
 
