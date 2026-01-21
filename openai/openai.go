@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"tg-bot-go/config"
 	"time"
 )
@@ -23,6 +25,13 @@ type OpenAIChatResponse struct {
 	Choices []struct {
 		Message ChatMessage `json:"message"`
 	} `json:"choices"`
+}
+
+type OpenAIErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error"`
 }
 
 var httpClient = &http.Client{
@@ -64,8 +73,21 @@ func GetOpenAIResponse(messages []ChatMessage) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		bodyText := strings.TrimSpace(string(bodyBytes))
+		if len(bodyText) > 2000 {
+			bodyText = bodyText[:2000]
+		}
+		return "", fmt.Errorf("openai api error: status %d: %s", resp.StatusCode, bodyText)
+	}
+
 	var openAIResp OpenAIChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openAIResp); err != nil {
+	if err := json.Unmarshal(bodyBytes, &openAIResp); err != nil {
 		return "", err
 	}
 
@@ -73,5 +95,17 @@ func GetOpenAIResponse(messages []ChatMessage) (string, error) {
 		return openAIResp.Choices[0].Message.Content, nil
 	}
 
+	var openAIError OpenAIErrorResponse
+	if err := json.Unmarshal(bodyBytes, &openAIError); err == nil && openAIError.Error.Message != "" {
+		return "", fmt.Errorf(openaiErrorMessage(openAIError))
+	}
+
 	return "", fmt.Errorf("no response from OpenAI")
+}
+
+func openaiErrorMessage(openAIError OpenAIErrorResponse) string {
+	if openAIError.Error.Type != "" {
+		return fmt.Sprintf("%s: %s", openAIError.Error.Type, openAIError.Error.Message)
+	}
+	return openAIError.Error.Message
 }
