@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("无法创建综合日志文件：%v", err)
 	}
-	combinedLog = log.New(combinedLogFile, "", log.Ldate|log.Ltime|log.Lshortfile)
+	combinedLog = log.New(io.MultiWriter(os.Stdout, combinedLogFile), "", log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 func LogRuntime(message string) {

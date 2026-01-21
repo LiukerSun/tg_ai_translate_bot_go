@@ -44,6 +44,13 @@ func GetOpenAIResponse(messages []ChatMessage) (string, error) {
 	apiKey := config.Config.OpenAI.APIKey
 	model := config.Config.OpenAI.Model
 
+	if strings.TrimSpace(apiKey) == "" {
+		return "", fmt.Errorf("openai api key not set")
+	}
+	if strings.TrimSpace(model) == "" {
+		return "", fmt.Errorf("openai model not set")
+	}
+
 	// 构建请求体
 	requestBody, err := json.Marshal(OpenAIChatRequest{
 		Model:    model,
