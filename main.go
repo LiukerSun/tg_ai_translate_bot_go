@@ -36,6 +36,7 @@ func main() {
 
 	// 初始化配置
 	config.InitConfig()
+	logger.LogRuntime(fmt.Sprintf("OpenAI config loaded: api_url=%s model=%s", config.Config.OpenAI.APIURL, config.Config.OpenAI.Model))
 
 	// 初始化数据库
 	config.InitDB()
